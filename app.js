@@ -1,3 +1,4 @@
+const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const express = require("express");
@@ -13,27 +14,84 @@ let blob;
 let send = false;
 let latestVideo = "1702985948057.mp4";
 
-const { WebSocketServer } = require('ws')
-const server = app.listen(3140, () => console.log(`Omar listening on 3140`));
-const sockserver = new WebSocketServer({ server: server })
+// const { WebSocketServer } = require('ws')
+// const server = app.listen(3140, () => console.log(`Omar listening on 3140`));
+// const sockserver = new WebSocketServer({ server: server })
+
+const serverPort = 3140;
+const WebSocket = require('ws');
+const server = http.createServer(app, () => { console.log(`Omar listening on ${serverPort}`) });
+
+let keepAliveId = null;
 
 // Websocket Server
-sockserver.on('connection', ws => {
+// sockserver.on('connection', ws => {
 
- ws.on('close', () => console.log('Client has disconnected!'))
+//  ws.on('close', () => console.log('Client has disconnected!'))
 
- ws.on('message', data => {
-   sockserver.clients.forEach(client => {
-     console.log(`distributing message: ${data}`)
-     client.send(`${data}`)
-   })
- })
+//  ws.on('message', data => {
+//    sockserver.clients.forEach(client => {
+//      console.log(`distributing message: ${data}`)
+//      client.send(`${data}`)
+//    })
+//  })
 
- ws.onerror = function () {
-   console.log('websocket error')
- }
-})
+//  ws.onerror = function () {
+//    console.log('websocket error')
+//  }
+// })
 
+const wss = new WebSocket.Server({ server });
+const sockserver = wss; // Make sockserver globally accessible
+server.listen(serverPort, () => console.log(`Server listening on ${serverPort}`));
+
+// const intRoutes = require('./routes/intRoutes')(sockserver);
+
+wss.on("connection", function (ws, req) {
+  console.log("Connection Opened");
+  console.log("Client size:", wss.clients.size);
+
+  if (!keepAliveId) {
+    keepServerAlive();
+  }
+
+  ws.on("message", (data) => {
+    try {
+      console.log("Received the data:", data);
+    } catch (e) {
+      console.log(e);
+    }
+  });
+
+  ws.on("close", (data) => {
+    console.log("Closing connection");
+    if (wss.clients.size === 0) {
+      console.log("Last client disconnected, stopping keepAlive interval");
+      clearInterval(keepAliveId);
+      keepAliveId = null;
+    }
+  });
+});
+
+// const broadcast = (ws, message, includeSelf) => {
+//   wss.clients.forEach((client) => {
+//     if (includeSelf || client !== ws) {
+//       if (client.readyState === WebSocket.OPEN) {
+//         client.send(message);
+//       }
+//     }
+//   });
+// };
+
+const keepServerAlive = () => {
+  keepAliveId = setInterval(() => {
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send('ping');
+      }
+    });
+  }, 50000);
+};
 
 
 app.post("/minting", (req, res) => {
@@ -63,7 +121,7 @@ app.post("/minting", (req, res) => {
         client.send(waiting)
         setTimeout(() => {
           let message = `<p id="newID">Video ID: <span>${newId}</span></p><div><img src="${blob}" alt="QR code"></div>`;
-          client.send(message)   
+          client.send(message);
         }, 10000);
       })
 
