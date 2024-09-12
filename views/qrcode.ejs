@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width">
 
-    <title>Synaesthesia || QR Code</title>
+    <title>QR Code</title>
     <style>
       html, body {
         margin: 0;
@@ -72,12 +72,24 @@
     <script>      
       const webSocket = new WebSocket('wss://qr.patternbased.com/ws');
       webSocket.onmessage = (event) => {
-        if(event.data === 'ping') {
-          webSocket.send('pong');
-          return;
+        const message = event.data;
+        if(message == 'ping') {
+          console.log('Ping received');
+        } else if (message.includes('png:')) {
+          console.log('Png received');
+          let trimmed1 = message.substring(4)
+          document.getElementById('content').innerHTML = trimmed1;
+          setTimeout(() => {
+            w=window.open();
+            w.document.write(document.getElementById('content').innerHTML);
+            w.print();
+            w.close();
+          }, 2000)
+        } else if (message.includes('waiting:')) {
+          let trimmed2 = message.substring(8)
+          document.getElementById('content').innerHTML = trimmed2
         } else {
-          console.log(event)
-          document.getElementById('msg').innerHTML = event.data;
+          console.log('Message received:', message);
         }
       };
       webSocket.addEventListener("open", () => {
