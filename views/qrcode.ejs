@@ -78,16 +78,16 @@
         } else if (message.includes('png:')) {
           console.log('Png received');
           let trimmed1 = message.substring(4)
-          document.getElementById('content').innerHTML = trimmed1;
+          document.getElementById('msg').innerHTML = trimmed1;
           setTimeout(() => {
             w=window.open();
-            w.document.write(document.getElementById('content').innerHTML);
+            w.document.write(document.getElementById('msg').innerHTML);
             w.print();
             w.close();
           }, 2000)
         } else if (message.includes('waiting:')) {
           let trimmed2 = message.substring(8)
-          document.getElementById('content').innerHTML = trimmed2
+          document.getElementById('msg').innerHTML = trimmed2
         } else {
           console.log('Message received:', message);
         }
