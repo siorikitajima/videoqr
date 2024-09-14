@@ -75,19 +75,21 @@
         const message = event.data;
         if(message == 'ping') {
           console.log('Ping received');
-        } else if (message.includes('png:')) {
+        } else if (message.includes('png;')) {
           console.log('Png received');
-          let trimmed1 = message.substring(4)
-          document.getElementById('msg').innerHTML = trimmed1;
+          // let trimmed1 = message.substring(4)
+          // document.getElementById('msg').innerHTML = trimmed1;
+          document.getElementById('msg').innerHTML = message;
           setTimeout(() => {
             w=window.open();
             w.document.write(document.getElementById('msg').innerHTML);
             w.print();
             w.close();
           }, 2000)
-        } else if (message.includes('waiting:')) {
-          let trimmed2 = message.substring(8)
-          document.getElementById('msg').innerHTML = trimmed2
+        } else if (message.includes('openmsg')) {
+          // let trimmed2 = message.substring(8)
+          // document.getElementById('msg').innerHTML = trimmed2
+          document.getElementById('msg').innerHTML = message;
         } else {
           console.log('Message received:', message);
         }
