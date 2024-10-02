@@ -33,25 +33,15 @@
 <body>
     <% if (video) {%>
     <div id="video">
-        <video id="video" height="100%" controls poster="https://qr.patternbased.com/images/thumbnail.jpg">
-            <source src="https://qr.patternbased.com/processed/<%=videoid%>_optimized.mp4" type="video/mp4">
+        <video id="video" height="100%" controls poster="https://qr.patternbased.com/images/thumbnail/<%=appname%>.jpg">
+            <source src="https://qr.patternbased.com/processed/<%=appname%>/<%=videoid%>_optimized.mp4" type="video/mp4">
         </video>
     </div>
     <% } else { %>
         <div>
-            <p>Uploading the video. Please try again. ID: <%=videoid%></p>
+            <p>Processing the video. Please try again. ID: <%=videoid%></p>
         </div>
     <% } %>
-    <!-- <script>      
-      const webSocket = new WebSocket('ws://localhost:3120');
-      webSocket.onmessage = (event) => {
-        console.log(event)
-        document.getElementById('msg').innerHTML = 
-          event.data;
-      };
-      webSocket.addEventListener("open", () => {
-        console.log("We are connected");
-      });
-      </script> -->
+
 </body>
 </html>

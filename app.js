@@ -5,7 +5,12 @@ const express = require("express");
 const { render } = require('ejs');
 const QRCode = require('qrcode');
 const ffmpeg = require('fluent-ffmpeg');
+ffmpeg.setFfmpegPath('/usr/local/bin/ffmpeg'); // Adjust the path if needed
 const app = express();
+
+// ffmpeg.getAvailableFormats(function(err, formats) { 
+//   if (err) { console.log('FFmpeg not found: ', err); } 
+//   else { console.log('FFmpeg is working. Available formats: ', formats); } });
 
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
@@ -62,8 +67,11 @@ const keepServerAlive = () => {
   }, 50000);
 };
 
-app.put("/minting", (req, res) => {
-  const uploadFolder = `${__dirname}/public/uploads`;
+
+////// QR Code + FFmpeg Function
+
+function qrffmpeg (req, res, name, w, h) {
+  const uploadFolder = `${__dirname}/public/uploads/${name}`;
   if (!fs.existsSync(uploadFolder)) {
     fs.mkdirSync(uploadFolder, { recursive: true });
   }
@@ -74,11 +82,11 @@ app.put("/minting", (req, res) => {
   const uploadFilename = fileName;
   latestVideo = uploadFilename;
   const uploadPath = path.join(uploadFolder, uploadFilename);
-  const outputDir = path.join(__dirname, 'public/processed/');
+  const outputDir = path.join(__dirname, `public/processed/${name}/`);
   const outputFile = path.join(outputDir, `${newId}_output.mp4`);
   const optimizedFile = path.join(outputDir, `${newId}_optimized.mp4`);
-  const footerFile = path.join(__dirname, 'footer.mp4');
-  const uploadUrl = `https://qr.patternbased.com/video/${newId}`;
+  const footerFile = path.join(__dirname, `public/footers/${name}.mp4`);
+  const uploadUrl = `https://qr.patternbased.com/video/${name}/${newId}`;
 
   // Generate QR Code
   QRCode.toDataURL(uploadUrl, { type: 'png' }, (err, png) => {
@@ -139,7 +147,7 @@ app.put("/minting", (req, res) => {
         // Now optimize the video for size and compatibility
         ffmpeg(outputFile)
           .outputOptions([
-            '-vf scale=640:360',    // Resize to 640x360 for web compatibility
+            `-vf scale=${w}:${h}`,    // Resize to 640x360 for web compatibility
             '-c:v libx264',         // Use H.264 codec
             '-crf 28',              // Optimize for file size (28 is visually lossless)
             '-preset slow',         // Maximize compression efficiency
@@ -168,230 +176,26 @@ app.put("/minting", (req, res) => {
   });
 
   req.pipe(writeStream);
+};
+
+// Routes
+////// Baby's First Drum Machine (bfdm)
+app.put("/bfdm", (req, res) => {
+  qrffmpeg(req, res, 'bfdm', 640, 360);
 });
 
-app.put("/minting2", (req, res) => {
-  const uploadFolder = `${__dirname}/public/uploads2`;
-  if (!fs.existsSync(uploadFolder)) {
-    fs.mkdirSync(uploadFolder, { recursive: true });
-  }
-  
-  const dateNow = Date.now();
-  newId = dateNow;
-  const fileName = `${newId}.mp4`;
-  const uploadFilename = fileName;
-  latestVideo = uploadFilename;
-  const uploadPath = path.join(uploadFolder, uploadFilename);
-  const outputDir = path.join(__dirname, 'public/processed2/');
-  const outputFile = path.join(outputDir, `${newId}_output.mp4`);
-  const optimizedFile = path.join(outputDir, `${newId}_optimized.mp4`);
-  const footerFile = path.join(__dirname, 'footer2.mp4');
-  const uploadUrl = `https://qr.patternbased.com/video2/${newId}`;
-
-  // Generate QR Code
-  QRCode.toDataURL(uploadUrl, { type: 'png' }, (err, png) => {
-    if (err) {
-      console.error('Error generating QR code:', err);
-      return res.status(500).send('QR code generation failed');
-    }
-  
-    blob = png;
-    send = true;
-    console.log('QR Code generated:', uploadUrl);
-  
-    // Send QR Code to all connected clients
-    sockserver.clients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        let waiting = '<p id="openmsg">QR CODE<br/>SHOWS HERE</p>';
-        client.send(waiting);
-  
-        setTimeout(() => {
-          let message = `<p id="newID">Video ID: <span>${newId}</span></p><div><img src="${blob}" alt="QR code"></div>`;
-          console.log('Sending QR code to client');
-          client.send(message);
-        }, 10000);
-      } else {
-        console.log('Client is not ready to receive QR code');
-      }
-    });
-  });
-
-  // Create Write stream
-  const writeStream = fs.createWriteStream(uploadPath);
-  writeStream.on("error", (err) => {
-    console.log(err);
-    return res.status(500).end("");
-  });
-
-  req.on("end", () => {
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
-
-    // Append footer to video
-    console.log(`Processing video: ${uploadPath}`);
-    ffmpeg(uploadPath)
-      .input(footerFile)
-      .complexFilter(['[0:v:0][1:v:0]concat=n=2:v=1:a=0[outv]', '[0:a:0][1:a:0]concat=n=2:v=0:a=1[outa]'])
-      .map('outv').map('outa')
-      .output(outputFile)
-      .on('start', () => {
-        console.log('FFmpeg processing started...');
-      })
-      .on('progress', (progress) => {
-        console.log(`Processing: ${progress.percent}% done`);
-      })
-      .on('end', () => {
-        console.log('Footer appended, starting optimization...');
-        
-        // Now optimize the video for size and compatibility
-        ffmpeg(outputFile)
-          .outputOptions([
-            '-vf scale=640:360',    // Resize to 640x360 for web compatibility
-            '-c:v libx264',         // Use H.264 codec
-            '-crf 28',              // Optimize for file size (28 is visually lossless)
-            '-preset slow',         // Maximize compression efficiency
-            '-c:a aac',             // Use AAC codec for audio
-            '-b:a 128k'             // Set audio bitrate
-          ])
-          .output(optimizedFile)
-          .on('start', () => {
-            console.log('Optimization started...');
-          })
-          .on('end', () => {
-            console.log('Optimization complete:', optimizedFile);
-            res.status(200).send('Video uploaded, processed, and optimized');
-          })
-          .on('error', (err) => {
-            console.error('Error during optimization:', err);
-            res.status(500).send('Video optimization failed: ' + err.message);
-          })
-          .run();
-      })
-      .on('error', (err) => {
-        console.error('Error during video processing:', err);
-        res.status(500).send('Video processing failed: ' + err.message);
-      })
-      .run();
-  });
-
-  req.pipe(writeStream);
+////// Metamorphosis (mm)
+app.put("/mm", (req, res) => {
+  qrffmpeg(req, res, 'mm', 640, 360);
 });
-
-// app.put("/minting", (req, res) => {
-//   const uploadFolder = `${__dirname}/public/uploads`;
-//   if (!fs.existsSync(uploadFolder)) {
-//     fs.mkdirSync(uploadFolder, { recursive: true });
-//   }
-  
-//   const dateNow = Date.now();
-//   newId = dateNow;
-//   const fileName = `${newId}.mp4`;
-//   const uploadFilename = fileName;
-//   latestVideo = uploadFilename;
-//   const uploadPath = path.join(uploadFolder, uploadFilename);
-//   const outputDir = path.join(__dirname, 'public/processed/');
-//   const outputFile = path.join(outputDir, `${newId}_output.mp4`);
-//   const optimizedFile = path.join(outputDir, `${newId}_optimized.mp4`);
-//   const footerFile = path.join(__dirname, 'footer.mp4');
-//   const uploadUrl = `https://qr.patternbased.com/video/${newId}`;
-
-//   // Generate QR Code
-//   QRCode.toDataURL(uploadUrl, { type: 'png' }, (err, png) => {
-//     if (err) {
-//       console.error('Error generating QR code:', err);
-//       return res.status(500).send('QR code generation failed');
-//     }
-  
-//     blob = png;
-//     send = true;
-//     console.log('QR Code generated:', uploadUrl);
-  
-//     // Send QR Code to all connected clients
-//     sockserver.clients.forEach(client => {
-//       if (client.readyState === WebSocket.OPEN) {
-//         let waiting = '<p id="openmsg">QR CODE<br/>SHOWS HERE</p>';
-//         client.send(waiting);
-  
-//         setTimeout(() => {
-//           let message = `<p id="newID">Video ID: <span>${newId}</span></p><div><img src="${blob}" alt="QR code"></div>`;
-//           console.log('Sending QR code to client');
-//           client.send(message);
-//         }, 10000);
-//       } else {
-//         console.log('Client is not ready to receive QR code');
-//       }
-//     });
-//   });
-
-//   // Create Write stream
-//   const writeStream = fs.createWriteStream(uploadPath);
-//   writeStream.on("error", (err) => {
-//     console.log(err);
-//     return res.status(500).end("");
-//   });
-
-//   req.on("end", () => {
-//     if (!fs.existsSync(outputDir)) {
-//       fs.mkdirSync(outputDir, { recursive: true });
-//     }
-
-//     // Append footer to video
-//     console.log(`Processing video: ${uploadPath}`);
-//     ffmpeg(uploadPath)
-//       .input(footerFile)
-//       .complexFilter(['[0:v:0][1:v:0]concat=n=2:v=1:a=0[outv]', '[0:a:0][1:a:0]concat=n=2:v=0:a=1[outa]'])
-//       .map('outv').map('outa')
-//       .output(outputFile)
-//       .on('start', () => {
-//         console.log('FFmpeg processing started...');
-//       })
-//       .on('progress', (progress) => {
-//         console.log(`Processing: ${progress.percent}% done`);
-//       })
-//       .on('end', () => {
-//         console.log('Footer appended, starting optimization...');
-        
-//         // Now optimize the video for size and compatibility
-//         ffmpeg(outputFile)
-//           .outputOptions([
-//             '-vf scale=640:360',    // Resize to 640x360 for web compatibility
-//             '-c:v libx264',         // Use H.264 codec
-//             '-crf 28',              // Optimize for file size (28 is visually lossless)
-//             '-preset slow',         // Maximize compression efficiency
-//             '-c:a aac',             // Use AAC codec for audio
-//             '-b:a 128k'             // Set audio bitrate
-//           ])
-//           .output(optimizedFile)
-//           .on('start', () => {
-//             console.log('Optimization started...');
-//           })
-//           .on('end', () => {
-//             console.log('Optimization complete:', optimizedFile);
-//             res.status(200).send('Video uploaded, processed, and optimized');
-//           })
-//           .on('error', (err) => {
-//             console.error('Error during optimization:', err);
-//             res.status(500).send('Video optimization failed: ' + err.message);
-//           })
-//           .run();
-//       })
-//       .on('error', (err) => {
-//         console.error('Error during video processing:', err);
-//         res.status(500).send('Video processing failed: ' + err.message);
-//       })
-//       .run();
-//   });
-
-//   req.pipe(writeStream);
-// });
 
 
 app.get("/", (req, res) => { res.render('qrcode') });
 
-app.get("/video/:videoid", (req, res) => {
+app.get("/video/:appname/:videoid", (req, res) => {
   const videoid = req.params.videoid;
-  const theVideo = `${__dirname}/public/uploads/${videoid}.mp4`;
+  const appname = req.params.appname;
+  const theVideo = `${__dirname}/public/processed/${appname}/${videoid}_optimized.mp4`;
   const video = fs.existsSync(theVideo) ? fs.readFileSync(theVideo) : null;
 
   if (!fs.existsSync(theVideo)) {
@@ -399,18 +203,5 @@ app.get("/video/:videoid", (req, res) => {
   } else {
     console.log("Video found");
   }
-  res.render('video', { video: video, videoid: videoid });
-});
-
-app.get("/video2/:videoid", (req, res) => {
-  const videoid = req.params.videoid;
-  const theVideo = `${__dirname}/public/uploads2/${videoid}.mp4`;
-  const video = fs.existsSync(theVideo) ? fs.readFileSync(theVideo) : null;
-
-  if (!fs.existsSync(theVideo)) {
-    console.log("Video not found");
-  } else {
-    console.log("Video found");
-  }
-  res.render('video2', { video: video, videoid: videoid });
+  res.render('video', { video: video, videoid: videoid, appname: appname });
 });
